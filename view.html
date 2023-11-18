@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viewer</title>
+    <style>
+        body {
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            background-color: #202020;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #left-container {
+            flex: 1;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        #stream-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #333;
+            border-radius: 5px;
+            box-shadow: 0 0px 20px #4400ff;
+            overflow: hidden;
+            animation: rainbow-box-shadow 4s linear infinite;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: orange;
+        }
+
+        #right-container {
+            flex: 1;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #chat-iframe {
+            width: 100%;
+            height: 90vh;
+            border: none;
+            background-color: #333;
+            border-radius: 5px;
+        }
+
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .button {
+            padding: 10px 20px;
+            background-color: #4400ff;
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+            outline: none;
+            transition: background-color 0.3s ease;
+        }
+
+        .button:hover {
+            background-color: #5900ff;
+        }
+
+        #download-button {
+            display: none;
+        }
+
+        #stream-video {
+            width: 100%;
+            max-width: 800px;
+            background-color: #333;
+            border-radius: 5px;
+            box-shadow: 0 0px 20px #4400ff;
+            overflow: hidden;
+            animation: rainbow-box-shadow 4s linear infinite;
+        }
+
+        #stream-audio {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="left-container">
+        <h1>Viewer</h1>
+        <video style="width: 100%;" id="stream-video" controls></video>
+        <audio style="display: none;" id="stream-audio"></audio>
+        <p id="status">Status: Connecting...</p>
+        <div class="buttons">
+            <button id="download-button" class="button">Download</button>
+        </div>
+    </div>
+
+    <div id="right-container">
+        <iframe id="chat-iframe" src="https://techlm77.co.uk/websocket/chat/index-v2.html"></iframe>
+    </div>
+    
+    <script>
+        const videoElement = document.getElementById('stream-video');
+        const audioElement = document.getElementById('stream-audio');
+        const statusElement = document.getElementById('status');
+        const downloadButton = document.getElementById('download-button');
+        const mediaSource = new MediaSource();
+        const socket = new WebSocket('wss://node.techlm77.co.uk:8446/stream');
+        socket.binaryType = 'arraybuffer';
+
+        let sourceBuffer;
+        const receivedBuffers = [];
+        let isAppending = false;
+        let activeMediaSource = false;
+        let recordedChunks = [];
+
+        videoElement.src = URL.createObjectURL(mediaSource);
+        audioElement.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener('sourceopen', function () {
+            sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp9, opus"');
+            sourceBuffer.mode = 'sequence';
+            activeMediaSource = true;
+            processReceivedBuffers();
+            downloadButton.style.display = 'block'; // Show download button
+        });
+
+        mediaSource.addEventListener('sourceended', function () {
+            activeMediaSource = false;
+            cleanUpBuffers();
+        });
+
+        socket.addEventListener('message', async function (event) {
+            receivedBuffers.push(event.data);
+
+            // Trigger unmute and play immediately when receiving the first message
+            if (!activeMediaSource) {
+                activeMediaSource = true;
+                videoElement.play();
+                audioElement.play(); // Auto-play audio
+            }
+
+            if (activeMediaSource && mediaSource.readyState === 'open' && !sourceBuffer.updating) {
+                processReceivedBuffers();
+            }
+        });
+
+        socket.addEventListener('close', function () {
+            activeMediaSource = false;
+            if (receivedBuffers.length > 0) {
+                processReceivedBuffers();
+            }
+        });
+
+        async function processReceivedBuffers() {
+            if (isAppending) return;
+            if (activeMediaSource && mediaSource.readyState === 'open' && receivedBuffers.length > 0 && sourceBuffer && !sourceBuffer.updating) {
+                isAppending = true;
+                const buffer = receivedBuffers.shift();
+
+                try {
+                    const data = new Uint8Array(buffer);
+                    if (data.length > 0) {
+                        sourceBuffer.appendBuffer(data);
+                        recordedChunks.push(data);
+                    }
+                } catch (error) {
+                    console.error('Error appending buffer:', error);
+                    isAppending = false;
+                    processReceivedBuffers();
+                }
+
+                isAppending = false;
+                if (!sourceBuffer.updating) {
+                    updateBufferedData();
+                }
+            }
+        }
+
+        function updateBufferedData() {
+            if (activeMediaSource && sourceBuffer.buffered.length > 0) {
+                const currentTime = videoElement.currentTime;
+                const bufferedEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
+
+                if (bufferedEnd >= currentTime + 1) {
+                    setTimeout(updateBufferedData, 1000);
+                } else if (!sourceBuffer.updating) {
+                    processReceivedBuffers();
+                }
+            }
+        }
+
+        function cleanUpBuffers() {
+            receivedBuffers.length = 0;
+            if (sourceBuffer && sourceBuffer.updating) {
+                sourceBuffer.abort();
+            }
+            if (mediaSource.readyState === 'open') {
+                mediaSource.endOfStream();
+            }
+            URL.revokeObjectURL(videoElement.src);
+            videoElement.removeAttribute('src');
+            URL.revokeObjectURL(audioElement.src);
+            audioElement.removeAttribute('src');
+        }
+
+        downloadButton.addEventListener('click', function () {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            document.body.appendChild(a);
+            a.style = 'display: none';
+            a.href = url;
+            a.download = `stream-${new Date().toISOString()}.webm`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+
+        socket.addEventListener('open', function () {
+            statusElement.textContent = 'Status: Connected';
+            statusElement.style.color = 'green';
+        });
+
+        socket.addEventListener('close', function () {
+            statusElement.textContent = 'Status: Disconnected';
+            statusElement.style.color = 'red';
+        });
+
+        socket.addEventListener('error', function () {
+            statusElement.textContent = 'Status: Error';
+            statusElement.style.color = 'red';
+        });
+    </script>
+
+</body>
+
+</html>
