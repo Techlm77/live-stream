@@ -3,366 +3,381 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streamer</title>
     <style>
         body {
-            color: #ffffff;
             font-family: Arial, sans-serif;
-            background-color: #202020;
-            font-size: 16px;
+            margin: 0;
+            padding: 0;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #202020;
+            color: white;
         }
 
-        #left-container {
-            flex: 1;
+        #container {
+            background-color: #333;
+            border-radius: 10px;
             padding: 20px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             text-align: center;
+            width: 80%;
+            max-width: 600px;
         }
 
         #stream-container {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: #333;
-            border-radius: 5px;
-            box-shadow: 0 0px 20px #4400ff;
             overflow: hidden;
-            animation: rainbow-box-shadow 4s linear infinite;
+            box-shadow: 0 0px 20px #4400ff;
+            border: 2px solid #8b00ff;
+            border-radius: 8px;
+        }
+
+        video,
+        audio {
+            width: 100%;
+            border-radius: 6px;
         }
 
         #status {
             margin-top: 10px;
             font-weight: bold;
-            color: orange;
+        }
+
+        select,
+        button,
+        .permission-button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        select:hover,
+        button:hover,
+        .permission-button:hover {
+            background-color: #45a049;
+        }
+
+        .end-stream-btn-container {
+            margin-top: 10px;
+        }
+
+        canvas {
+            margin-top: 20px;
+            max-width: 100%;
+        }
+
+        #notification-permission-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #008CBA;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        #notification-permission-btn:hover {
+            background-color: #005f79;
+        }
+
+        #graph-canvas {
+            transform: rotateX(180deg);
         }
 
         .permission-buttons {
             display: flex;
-            flex-wrap: wrap;
             justify-content: center;
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .permission-button {
-            padding: 10px 20px;
-            background-color: #4400ff;
-            border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-            outline: none;
-            transition: background-color 0.3s ease;
-        }
-
-        .permission-button:hover {
-            background-color: #4400ff;
-        }
-
-        .permission-button:active {
-            background-color: #5900ff;
-        }
-
-        .end-stream-btn-container {
-            margin-top: 20px;
+            gap: 5px;
         }
 
         #connected-clients {
-            margin-top: 20px;
-        }
-
-        #graph-canvas {
-            width: 100%;
-            max-width: 800px;
-            height: 150px;
-            margin: 20px auto;
-            background-color: #333;
-            transform: rotateX(180deg);
-            border-radius: 5px;
-        }
-
-        #right-container {
-            flex: 1;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        #chat-iframe {
-            width: 100%;
-            height: 90vh;
-            border: none;
-            background-color: #333;
-            border-radius: 5px;
+            margin: 5px;
         }
     </style>
+    <title>Live Streamer</title>
 </head>
 
 <body>
-    <div id="left-container">
+    <div id="container">
         <h1>Streamer</h1>
         <div id="stream-container">
-            <video style="width: 100%;" id="stream-video" controls autoplay muted></video>
+            <video id="stream-video" controls autoplay muted></video>
             <audio style="display: none;" id="stream-audio" controls muted></audio>
         </div>
         <p id="status">Status: Waiting for permissions...</p>
+        <select id="socketChannel">
+            <option value="channel1">Channel 1</option>
+            <option value="channel2">Channel 2</option>
+            <option value="channel3">Channel 3</option>
+        </select>
+        <button id="startStreamBtn" class="button">Start Streaming</button>
         <div class="permission-buttons">
-            <button id="request-screen-permission" class="permission-button">Request Screen Sharing</button>
+            <button id="request-screen-permission" class="button">Request Screen Sharing</button>
             <p id="or-permission"> or </p>
-            <button id="request-camera-permission" class="permission-button">Request Camera Sharing</button>
-            <button id="request-audio-permission" class="permission-button" style="display: none;">Request Audio Permission</button>
+            <button id="request-camera-permission" class="button">Request Camera Sharing</button>
+            <button id="request-audio-permission" class="button" style="display: none;">Request Audio
+                Permission</button>
         </div>
         <div class="end-stream-btn-container">
-            <button id="end-stream-btn" class="permission-button" style="display: none;" disabled>End Stream</button>
+            <button id="end-stream-btn" class="button" style="display: none;" disabled>End Stream</button>
         </div>
         <p id="connected-clients">Connected clients: 0</p>
-        <br>
-        <button id="notification-permission-btn" class="permission-button" style="margin-top: 10px;">Request Notification Permission</button>
+        <button id="notification-permission-btn" class="button" style="margin-top: 10px;">Request
+            Notification Permission</button>
         <br>
         <canvas id="graph-canvas"></canvas>
     </div>
 
-    <div id="right-container">
-        <iframe id="chat-iframe" src="https://techlm77.co.uk/websocket/chat/index-v2.html"></iframe>
-    </div>
-
     <script>
-        const videoElement = document.getElementById('stream-video');
-        const audioElement = document.getElementById('stream-audio');
-        const statusElement = document.getElementById('status');
-        const connectedClientsElement = document.getElementById('connected-clients');
-        const graphCanvas = document.getElementById('graph-canvas');
-        const screenPermissionButton = document.getElementById('request-screen-permission');
-        const cameraPermissionButton = document.getElementById('request-camera-permission');
-        const orPermissionButton = document.getElementById('or-permission');
-        const audioPermissionButton = document.getElementById('request-audio-permission');
-        const endStreamButton = document.getElementById('end-stream-btn');
-        const notificationPermissionButton = document.getElementById('notification-permission-btn');
+        document.getElementById('startStreamBtn').addEventListener('click', function () {
+            const selectedChannel = document.getElementById('socketChannel').value;
+            const socket = new WebSocket(`wss://node.techlm77.co.uk:8446/stream?channel=${selectedChannel}`);
+            const videoElement = document.getElementById('stream-video');
+            const audioElement = document.getElementById('stream-audio');
+            const statusElement = document.getElementById('status');
+            const connectedClientsElement = document.getElementById('connected-clients');
+            const graphCanvas = document.getElementById('graph-canvas');
+            const screenPermissionButton = document.getElementById('request-screen-permission');
+            const cameraPermissionButton = document.getElementById('request-camera-permission');
+            const orPermissionButton = document.getElementById('or-permission');
+            const audioPermissionButton = document.getElementById('request-audio-permission');
+            const endStreamButton = document.getElementById('end-stream-btn');
+            const notificationPermissionButton = document.getElementById('notification-permission-btn');
 
-        let mediaStream;
-        let mediaRecorder;
-        let connectedClientsCount = 0;
-        let connectedClientsHistory = [];
+            let mediaStream;
+            let mediaRecorder;
+            let connectedClientsCount = 0;
+            let connectedClientsHistory = [];
 
-        const socket = new WebSocket('wss://node.techlm77.co.uk:8446/stream');
-        socket.binaryType = 'arraybuffer'; // Optimize for binary data
+            socket.binaryType = 'arraybuffer'; // Optimize for binary data
 
-        function updateConnectedClients(count, isDisconnected = false) {
-            connectedClientsCount = count;
-            connectedClientsElement.textContent = `Connected clients: ${connectedClientsCount}`;
+            function updateConnectedClients(count, isDisconnected = false) {
+                connectedClientsCount = count;
+                connectedClientsElement.textContent = `Connected clients: ${connectedClientsCount}`;
 
-            // Notify the streamer
-            if (Notification.permission === 'granted') {
-                const notificationMessage = isDisconnected ? 'A client has disconnected!' : 'There are new connected clients!';
+                // Notify the streamer
+                if (Notification.permission === 'granted') {
+                    const notificationMessage = isDisconnected ? 'A client has disconnected!' : 'There are new connected clients!';
 
-                const notification = new Notification(`Connected clients: ${connectedClientsCount}`, {
-                    body: notificationMessage,
-                    icon: 'https://techlm77.co.uk/favicon.ico'
-                });
+                    const notification = new Notification(`Connected clients: ${connectedClientsCount}`, {
+                        body: notificationMessage,
+                        icon: 'https://techlm77.co.uk/favicon.ico'
+                    });
+                }
+
+                // Update the history and redraw the graph
+                connectedClientsHistory.push(connectedClientsCount);
+                drawGraph();
             }
 
-            // Update the history and redraw the graph
-            connectedClientsHistory.push(connectedClientsCount);
-            drawGraph();
-        }
+            function drawGraph() {
+                const ctx = graphCanvas.getContext('2d');
+                const width = graphCanvas.width;
+                const height = graphCanvas.height;
 
-        function drawGraph() {
-            const ctx = graphCanvas.getContext('2d');
-            const width = graphCanvas.width;
-            const height = graphCanvas.height;
+                ctx.clearRect(0, 0, width, height);
 
-            // Clear the canvas
-            ctx.clearRect(0, 0, width, height);
+                // Draw the grid
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
 
-            // Draw the grid
-            ctx.strokeStyle = '#555';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
+                // Horizontal grid lines
+                for (let i = 0; i <= 10; i++) {
+                    const y = (i / 10) * height;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                }
 
-            // Horizontal grid lines
-            for (let i = 0; i <= 10; i++) {
-                const y = (i / 10) * height;
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
+                // Vertical grid lines
+                for (let i = 0; i <= connectedClientsHistory.length; i++) {
+                    const x = (i / Math.max(10, connectedClientsHistory.length - 1)) * width;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                }
+
+                ctx.stroke();
+
+                // Draw the line graph with different colors for increase and decrease
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i < connectedClientsHistory.length; i++) {
+                    const x = (i / Math.max(10, connectedClientsHistory.length - 1)) * width;
+                    const y = ((connectedClientsHistory[i] / Math.max(10, Math.max(...connectedClientsHistory))) * height);
+
+                    if (i > 0) {
+                        const diff = connectedClientsHistory[i] - connectedClientsHistory[i - 1];
+                        ctx.strokeStyle = diff > 0 ? 'green' : 'red';
+                    }
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
             }
 
-            // Vertical grid lines
-            for (let i = 0; i <= connectedClientsHistory.length; i++) {
-                const x = (i / connectedClientsHistory.length) * width;
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-            }
+            function startStreaming() {
+                if (mediaStream) {
+                    videoElement.srcObject = mediaStream;
+                    audioElement.srcObject = mediaStream;
 
-            ctx.stroke();
+                    const videoOptions = {
+                        mimeType: 'video/webm; codecs="vp9"', // Adjust the codec as needed
+                        videoBitsPerSecond: 2000000,
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        frameRate: 30,
+                    };
 
-            // Draw the line graph
-            ctx.strokeStyle = 'orange';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
+                    const audioOptions = {
+                        mimeType: 'audio/webm; codecs="opus"',
+                        audioBitsPerSecond: 96000, // Adjust the audio bitrate as needed
+                        sampleRate: 48000, // Adjust the sample rate as needed
+                        channelCount: 2, // Stereo
+                    };
 
-            for (let i = 0; i < connectedClientsHistory.length; i++) {
-                const x = (i / (connectedClientsHistory.length - 1)) * width;
-                const y = ((connectedClientsHistory[i] / 10) * height); // Scale the values for better visibility
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
+                    mediaRecorder = new MediaRecorder(mediaStream, { video: videoOptions, audio: audioOptions });
+
+                    mediaRecorder.ondataavailable = function (event) {
+                        if (event.data.size > 0) {
+                            socket.send(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstart = function () {
+                        statusElement.textContent = 'Status: Live';
+                        statusElement.style.color = 'green';
+                    };
+
+                    mediaRecorder.onstop = function () {
+                        statusElement.textContent = 'Status: Stream Ended';
+                        statusElement.style.color = 'red';
+
+                        socket.send(JSON.stringify({ type: 'stream-ended' }));
+                        socket.close();
+                    };
+
+                    mediaStream.getVideoTracks()[0].addEventListener('ended', function () {
+                        mediaRecorder.stop();
+                    });
+
+                    mediaRecorder.start(1000);
                 }
             }
 
-            ctx.stroke();
-        }
+            screenPermissionButton.addEventListener('click', function () {
+                navigator.mediaDevices.getDisplayMedia({ video: true })
+                    .then(function (stream) {
+                        mediaStream = stream;
+                        screenPermissionButton.style.display = 'none';
+                        cameraPermissionButton.style.display = 'none';
+                        orPermissionButton.style.display = 'none';
+                        statusElement.textContent = 'Status: Screen Sharing Permission Granted';
+                        statusElement.style.color = 'orange';
+                        if (mediaStream && mediaStream.getTracks().length > 0) {
+                            audioPermissionButton.style.display = 'block';
+                        }
+                    })
+                    .catch(function (error) {
+                        console.error('Error accessing screen sharing:', error);
+                        statusElement.textContent = 'Status: Screen Sharing Permission Denied';
+                        statusElement.style.color = 'red';
+                    });
+            });
 
-        function startStreaming() {
-            if (mediaStream) {
-                videoElement.srcObject = mediaStream;
-                audioElement.srcObject = mediaStream;
+            cameraPermissionButton.addEventListener('click', function () {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function (stream) {
+                        mediaStream = stream;
+                        cameraPermissionButton.style.display = 'none';
+                        screenPermissionButton.style.display = 'none';
+                        orPermissionButton.style.display = 'none';
+                        statusElement.textContent = 'Status: Camera Permission Granted';
+                        statusElement.style.color = 'orange';
+                        if (mediaStream && mediaStream.getTracks().length > 0) {
+                            audioPermissionButton.style.display = 'block';
+                        }
+                    })
+                    .catch(function (error) {
+                        console.error('Error accessing camera:', error);
+                        statusElement.textContent = 'Status: Camera Permission Denied';
+                        statusElement.style.color = 'red';
+                    });
+            });
 
-                const videoOptions = {
-                    mimeType: 'video/webm; codecs="vp9"', // Adjust the codec as needed
-                    videoBitsPerSecond: 2000000,
-                    width: window.innerWidth,
-                    height: window.innerHeight,
-                    frameRate: 30,
-                };
+            audioPermissionButton.addEventListener('click', function () {
+                navigator.mediaDevices.getUserMedia({ audio: { channelCount: 2, sampleRate: 48000, bitRate: 96000 } })
+                    .then(function (stream) {
+                        mediaStream.addTrack(stream.getAudioTracks()[0]);
+                        audioPermissionButton.style.display = 'none';
+                        endStreamButton.style.display = 'unset';
+                        statusElement.textContent = 'Status: Audio Permission Granted';
+                        statusElement.style.color = 'green';
+                        if (mediaStream && mediaStream.getTracks().length > 0) {
+                            startStreaming();
+                            endStreamButton.disabled = false;
+                        }
+                    })
+                    .catch(function (error) {
+                        console.error('Error accessing audio:', error);
+                        statusElement.textContent = 'Status: Audio Permission Denied';
+                        statusElement.style.color = 'red';
+                    });
+            });
 
-                const audioOptions = {
-                    mimeType: 'audio/webm; codecs="opus"',
-                    audioBitsPerSecond: 96000, // Adjust the audio bitrate as needed
-                    sampleRate: 48000, // Adjust the sample rate as needed
-                    channelCount: 2, // Stereo
-                };
-
-                mediaRecorder = new MediaRecorder(mediaStream, { video: videoOptions, audio: audioOptions });
-
-                mediaRecorder.ondataavailable = function (event) {
-                    if (event.data.size > 0) {
-                        socket.send(event.data);
-                    }
-                };
-
-                mediaRecorder.onstart = function () {
-                    statusElement.textContent = 'Status: Live';
-                    statusElement.style.color = 'green';
-                };
-
-                mediaRecorder.onstop = function () {
-                    statusElement.textContent = 'Status: Stream Ended';
-                    statusElement.style.color = 'red';
-
-                    socket.send(JSON.stringify({ type: 'stream-ended' }));
-                    socket.close();
-                };
-
-                mediaStream.getVideoTracks()[0].addEventListener('ended', function () {
+            endStreamButton.addEventListener('click', function () {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
-                });
+                    endStreamButton.disabled = true;
+                }
+            });
 
-                mediaRecorder.start(5000); // Start recording after 5000 milliseconds (5 seconds)
-            }
-        }
-
-        screenPermissionButton.addEventListener('click', function () {
-            navigator.mediaDevices.getDisplayMedia({ video: true })
-                .then(function (stream) {
-                    mediaStream = stream;
-                    screenPermissionButton.style.display = 'none';
-                    cameraPermissionButton.style.display = 'none';
-                    orPermissionButton.style.display = 'none';
-                    statusElement.textContent = 'Status: Screen Sharing Permission Granted';
-                    statusElement.style.color = 'orange';
-                    if (mediaStream && mediaStream.getTracks().length > 0) {
-                        audioPermissionButton.style.display = 'block';
+            notificationPermissionButton.addEventListener('click', function () {
+                // Request notification permission
+                Notification.requestPermission().then(function (permission) {
+                    if (permission === 'granted') {
+                        alert('Notification permission granted!');
+                        notificationPermissionButton.style.display = 'none';
                     }
-                })
-                .catch(function (error) {
-                    console.error('Error accessing screen sharing:', error);
-                    statusElement.textContent = 'Status: Screen Sharing Permission Denied';
-                    statusElement.style.color = 'red';
                 });
-        });
+            });
 
-        cameraPermissionButton.addEventListener('click', function () {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(function (stream) {
-                    mediaStream = stream;
-                    cameraPermissionButton.style.display = 'none';
-                    screenPermissionButton.style.display = 'none';
-                    orPermissionButton.style.display = 'none';
-                    statusElement.textContent = 'Status: Camera Permission Granted';
-                    statusElement.style.color = 'orange';
-                    if (mediaStream && mediaStream.getTracks().length > 0) {
-                        audioPermissionButton.style.display = 'block';
+            socket.addEventListener('message', function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'streaming-rejected') {
+                        alert('Streaming is already active. Only one streamer is allowed at a time.');
+                        socket.close();
+                    } else if (data.type === 'stream-ended') {
+                        socket.close();
+                        alert('You have ended the live stream.');
+                    } else if (data.type === 'connected-clients') {
+                        updateConnectedClients(data.count, false);
+                    } else if (data.type === 'disconnected-client') {
+                        updateConnectedClients(data.count, true);
                     }
-                })
-                .catch(function (error) {
-                    console.error('Error accessing camera:', error);
-                    statusElement.textContent = 'Status: Camera Permission Denied';
-                    statusElement.style.color = 'red';
-                });
-        });
-
-        audioPermissionButton.addEventListener('click', function () {
-            navigator.mediaDevices.getUserMedia({ audio: { channelCount: 2, sampleRate: 48000, bitRate: 64000 } })
-                .then(function (stream) {
-                    mediaStream.addTrack(stream.getAudioTracks()[0]);
-                    audioPermissionButton.style.display = 'none';
-                    endStreamButton.style.display = 'unset';
-                    statusElement.textContent = 'Status: Audio Permission Granted';
-                    statusElement.style.color = 'green';
-                    if (mediaStream && mediaStream.getTracks().length > 0) {
-                        startStreaming();
-                        endStreamButton.disabled = false;
-                    }
-                })
-                .catch(function (error) {
-                    console.error('Error accessing audio:', error);
-                    statusElement.textContent = 'Status: Audio Permission Denied';
-                    statusElement.style.color = 'red';
-                });
-        });
-
-        endStreamButton.addEventListener('click', function () {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-                endStreamButton.disabled = true;
-            }
-        });
-
-        notificationPermissionButton.addEventListener('click', function () {
-            // Request notification permission
-            Notification.requestPermission().then(function (permission) {
-                if (permission === 'granted') {
-                    alert('Notification permission granted!');
-                    notificationPermissionButton.style.display = 'none';
+                } catch (error) {
+                    console.error('Error parsing WebSocket message as JSON:', error);
                 }
             });
         });
-
-        socket.addEventListener('message', function (event) {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'streaming-rejected') {
-                    alert('Streaming is already active. Only one streamer is allowed at a time.');
-                    socket.close();
-                } else if (data.type === 'stream-ended') {
-                    socket.close();
-                } else if (data.type === 'connected-clients') {
-                    updateConnectedClients(data.count, false);
-                } else if (data.type === 'disconnected-client') {
-                    updateConnectedClients(data.count, true);
-                }
-            } catch (error) {
-                console.error('Error parsing WebSocket message as JSON:', error);
-            }
-        });
     </script>
-
 
 </body>
 
