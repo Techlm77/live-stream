@@ -3,247 +3,290 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viewer</title>
     <style>
         body {
-            color: #ffffff;
             font-family: Arial, sans-serif;
-            background-color: #202020;
-            font-size: 16px;
+            margin: 0;
+            padding: 0;
             display: flex;
-            justify-content: space-between;
-        }
-
-        #left-container {
-            flex: 1;
-            padding: 20px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
-            text-align: center;
+            height: 100vh;
+            background-color: #202020;
+            color: white;
         }
 
-        #stream-container {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
+        #container {
             background-color: #333;
-            border-radius: 5px;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 80%;
+            max-width: 600px;
+        }
+
+        video,
+        audio {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
             box-shadow: 0 0px 20px #4400ff;
-            overflow: hidden;
-            animation: rainbow-box-shadow 4s linear infinite;
+            border: 2px solid #8b00ff;
         }
 
         #status {
             margin-top: 10px;
             font-weight: bold;
-            color: orange;
+            color: #333;
         }
 
-        #right-container {
-            flex: 1;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        #chat-iframe {
-            width: 100%;
-            height: 90vh;
+        select,
+        button,
+        .button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
             border: none;
-            background-color: #333;
-            border-radius: 5px;
+            border-radius: 4px;
+            background-color: #007BFF;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        select:hover,
+        button:hover,
+        .button:hover {
+            background-color: #0056b3;
         }
 
         .buttons {
             display: flex;
-            flex-direction: column;
-            gap: 20px;
-            align-items: center;
-            margin-top: 20px;
-        }
-
-        .button {
-            padding: 10px 20px;
-            background-color: #4400ff;
-            border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-            outline: none;
-            transition: background-color 0.3s ease;
-        }
-
-        .button:hover {
-            background-color: #5900ff;
+            justify-content: center;
+            margin-top: 10px;
+            gap: 5px;
         }
 
         #download-button {
-            display: none;
+            background-color: #28a745;
         }
 
-        #stream-video {
-            width: 100%;
-            max-width: 800px;
-            background-color: #333;
-            border-radius: 5px;
-            box-shadow: 0 0px 20px #4400ff;
-            overflow: hidden;
-            animation: rainbow-box-shadow 4s linear infinite;
+        #download-button:hover {
+            background-color: #218838;
         }
 
-        #stream-audio {
-            display: none;
+        #share-btn {
+            background-color: #007BFF;
+        }
+
+        #share-btn:hover {
+            background-color: #0056b3;
         }
     </style>
+    <title>Live Viewer</title>
 </head>
 
 <body>
-    <div id="left-container">
+    <div id="container">
         <h1>Viewer</h1>
-        <video style="width: 100%;" id="stream-video" controls></video>
+        <video id="stream-video" controls></video>
         <audio style="display: none;" id="stream-audio"></audio>
         <p id="status">Status: Connecting...</p>
+        <select id="socketChannel">
+            <option value="channel1">Channel 1</option>
+            <option value="channel2">Channel 2</option>
+            <option value="channel3">Channel 3</option>
+        </select>
+        <button id="startViewBtn" class="button">Start Viewing</button>
         <div class="buttons">
+            <button id="skipToLatestBtn" class="button">Skip to Latest</button>
+            <button id="share-btn" class="button">Share</button>
             <button id="download-button" class="button">Download</button>
         </div>
     </div>
 
-    <div id="right-container">
-        <iframe id="chat-iframe" src="https://techlm77.co.uk/websocket/chat/index-v2.html"></iframe>
-    </div>
-    
     <script>
-        const videoElement = document.getElementById('stream-video');
-        const audioElement = document.getElementById('stream-audio');
-        const statusElement = document.getElementById('status');
-        const downloadButton = document.getElementById('download-button');
-        const mediaSource = new MediaSource();
-        const socket = new WebSocket('wss://node.techlm77.co.uk:8446/stream');
-        socket.binaryType = 'arraybuffer';
+        document.getElementById('startViewBtn').addEventListener('click', function () {
+            const selectedChannel = document.getElementById('socketChannel').value;
+            const socket = new WebSocket(`wss://node.techlm77.co.uk:8446/view?channel=${selectedChannel}`);
+            const videoElement = document.getElementById('stream-video');
+            const audioElement = document.getElementById('stream-audio');
+            const statusElement = document.getElementById('status');
+            const downloadButton = document.getElementById('download-button');
+            const mediaSource = new MediaSource();
+            socket.binaryType = 'arraybuffer';
 
-        let sourceBuffer;
-        const receivedBuffers = [];
-        let isAppending = false;
-        let activeMediaSource = false;
-        let recordedChunks = [];
+            let sourceBuffer;
+            const receivedBuffers = [];
+            let isAppending = false;
+            let activeMediaSource = false;
+            let recordedChunks = [];
 
-        videoElement.src = URL.createObjectURL(mediaSource);
-        audioElement.src = URL.createObjectURL(mediaSource);
-
-        mediaSource.addEventListener('sourceopen', function () {
-            sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp9, opus"');
-            sourceBuffer.mode = 'sequence';
-            activeMediaSource = true;
-            processReceivedBuffers();
-            downloadButton.style.display = 'block'; // Show download button
-        });
-
-        mediaSource.addEventListener('sourceended', function () {
-            activeMediaSource = false;
-            cleanUpBuffers();
-        });
-
-        socket.addEventListener('message', async function (event) {
-            receivedBuffers.push(event.data);
-
-            // Trigger unmute and play immediately when receiving the first message
-            if (!activeMediaSource) {
-                activeMediaSource = true;
-                videoElement.play();
-                audioElement.play(); // Auto-play audio
+            // Function to start playing the video and audio
+            function startPlaying() {
+                if (!activeMediaSource) {
+                    activeMediaSource = true;
+                    videoElement.play();
+                    audioElement.play(); // Auto-play audio
+                }
             }
 
-            if (activeMediaSource && mediaSource.readyState === 'open' && !sourceBuffer.updating) {
+            videoElement.src = URL.createObjectURL(mediaSource);
+            audioElement.src = URL.createObjectURL(mediaSource);
+
+            mediaSource.addEventListener('sourceopen', function () {
+                sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp9, opus"');
+                sourceBuffer.mode = 'sequence';
                 processReceivedBuffers();
-            }
-        });
+                downloadButton.style.display = 'block'; // Show download button
+            });
 
-        socket.addEventListener('close', function () {
-            activeMediaSource = false;
-            if (receivedBuffers.length > 0) {
-                processReceivedBuffers();
-            }
-        });
+            mediaSource.addEventListener('sourceended', function () {
+                activeMediaSource = false;
+                cleanUpBuffers();
+            });
 
-        async function processReceivedBuffers() {
-            if (isAppending) return;
-            if (activeMediaSource && mediaSource.readyState === 'open' && receivedBuffers.length > 0 && sourceBuffer && !sourceBuffer.updating) {
-                isAppending = true;
-                const buffer = receivedBuffers.shift();
+            socket.addEventListener('message', async function (event) {
+                receivedBuffers.push(event.data);
+                startPlaying(); // Start playing on each received message
 
-                try {
-                    const data = new Uint8Array(buffer);
-                    if (data.length > 0) {
-                        sourceBuffer.appendBuffer(data);
-                        recordedChunks.push(data);
+                if (activeMediaSource && mediaSource.readyState === 'open' && !sourceBuffer.updating) {
+                    processReceivedBuffers();
+                }
+            });
+
+            socket.addEventListener('close', function () {
+                activeMediaSource = false;
+                if (receivedBuffers.length > 0) {
+                    processReceivedBuffers();
+                }
+            });
+
+            async function processReceivedBuffers() {
+                if (isAppending) return;
+                if (activeMediaSource && mediaSource.readyState === 'open' && receivedBuffers.length > 0 && sourceBuffer && !sourceBuffer.updating) {
+                    isAppending = true;
+                    const buffer = receivedBuffers.shift();
+
+                    try {
+                        const data = new Uint8Array(buffer);
+                        if (data.length > 0) {
+                            sourceBuffer.appendBuffer(data);
+                            recordedChunks.push(data);
+                        }
+                    } catch (error) {
+                        console.error('Error appending buffer:', error);
+                        isAppending = false;
+                        processReceivedBuffers();
                     }
-                } catch (error) {
-                    console.error('Error appending buffer:', error);
+
                     isAppending = false;
-                    processReceivedBuffers();
-                }
-
-                isAppending = false;
-                if (!sourceBuffer.updating) {
-                    updateBufferedData();
+                    if (!sourceBuffer.updating) {
+                        updateBufferedData();
+                    }
                 }
             }
-        }
 
-        function updateBufferedData() {
-            if (activeMediaSource && sourceBuffer.buffered.length > 0) {
-                const currentTime = videoElement.currentTime;
-                const bufferedEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
+            function updateBufferedData() {
+                if (activeMediaSource && sourceBuffer.buffered.length > 0) {
+                    const currentTime = videoElement.currentTime;
+                    const bufferedEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
 
-                if (bufferedEnd >= currentTime + 1) {
-                    setTimeout(updateBufferedData, 1000);
-                } else if (!sourceBuffer.updating) {
-                    processReceivedBuffers();
+                    if (bufferedEnd >= currentTime + 1) {
+                        setTimeout(updateBufferedData, 1000);
+                    } else if (!sourceBuffer.updating) {
+                        processReceivedBuffers();
+                    }
                 }
             }
+
+            function cleanUpBuffers() {
+                receivedBuffers.length = 0;
+                if (sourceBuffer && sourceBuffer.updating) {
+                    sourceBuffer.abort();
+                }
+                if (mediaSource.readyState === 'open') {
+                    mediaSource.endOfStream();
+                }
+                URL.revokeObjectURL(videoElement.src);
+                videoElement.removeAttribute('src');
+                URL.revokeObjectURL(audioElement.src);
+                audioElement.removeAttribute('src');
+            }
+
+            downloadButton.addEventListener('click', function () {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                document.body.appendChild(a);
+                a.style = 'display: none';
+                a.href = url;
+                a.download = `stream-${new Date().toISOString()}.webm`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            });
+
+            socket.addEventListener('open', function () {
+                statusElement.textContent = 'Status: Connected';
+                statusElement.style.color = 'green';
+            });
+
+            socket.addEventListener('close', function () {
+                statusElement.textContent = 'Status: Disconnected';
+                statusElement.style.color = 'red';
+            });
+
+            socket.addEventListener('error', function () {
+                statusElement.textContent = 'Status: Error';
+                statusElement.style.color = 'red';
+            });
+
+            // Add the following code for the "Skip to Latest" button
+            document.getElementById('skipToLatestBtn').addEventListener('click', function () {
+                if (mediaSource && mediaSource.readyState === 'open' && sourceBuffer && !sourceBuffer.updating) {
+                    const currentTime = videoElement.currentTime;
+                    const bufferedEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
+
+                    if (bufferedEnd > currentTime) {
+                        videoElement.currentTime = bufferedEnd;
+                    }
+                }
+            });
+        });
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
         }
 
-        function cleanUpBuffers() {
-            receivedBuffers.length = 0;
-            if (sourceBuffer && sourceBuffer.updating) {
-                sourceBuffer.abort();
+        document.getElementById('share-btn').addEventListener('click', function () {
+            const selectedChannel = document.getElementById('socketChannel').value;
+            const shareUrl = `https://techlm77.co.uk/websocket/stream/view.html?live=${selectedChannel}`;
+
+            // Automatically copy the link to the clipboard
+            copyToClipboard(shareUrl);
+
+            // Provide feedback to the user (optional)
+            alert(`Link copied to clipboard: ${shareUrl}`);
+        });
+
+        // Add the following code to automatically join the specified channel on page load
+        window.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const liveChannel = urlParams.get('live');
+
+            if (liveChannel) {
+                document.getElementById('socketChannel').value = liveChannel;
+                document.getElementById('startViewBtn').click();
             }
-            if (mediaSource.readyState === 'open') {
-                mediaSource.endOfStream();
-            }
-            URL.revokeObjectURL(videoElement.src);
-            videoElement.removeAttribute('src');
-            URL.revokeObjectURL(audioElement.src);
-            audioElement.removeAttribute('src');
-        }
-
-        downloadButton.addEventListener('click', function () {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            document.body.appendChild(a);
-            a.style = 'display: none';
-            a.href = url;
-            a.download = `stream-${new Date().toISOString()}.webm`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        });
-
-        socket.addEventListener('open', function () {
-            statusElement.textContent = 'Status: Connected';
-            statusElement.style.color = 'green';
-        });
-
-        socket.addEventListener('close', function () {
-            statusElement.textContent = 'Status: Disconnected';
-            statusElement.style.color = 'red';
-        });
-
-        socket.addEventListener('error', function () {
-            statusElement.textContent = 'Status: Error';
-            statusElement.style.color = 'red';
         });
     </script>
 
