@@ -7,93 +7,112 @@ const fs = require('fs');
 
 const app = express();
 
-// HTTPS Configuration
 const httpsServer = https.createServer({
     key: fs.readFileSync('/etc/letsencrypt/live/node.techlm77.co.uk/privkey.pem'),
     cert: fs.readFileSync('/etc/letsencrypt/live/node.techlm77.co.uk/fullchain.pem')
 }, app);
 
-// HTTP Configuration (for non-SSL)
 const httpServer = http.createServer(app);
 
 const wss = new WebSocket.Server({ server: httpsServer });
 
-// Serve stream.html for the streamer
-app.get('/stream', (req, res) => {
-    res.sendFile(path.join(__dirname, 'stream.html'));
-});
+// Map to store connected clients for each channel
+const channelClients = new Map();
 
-// Serve view.html for the viewers
-app.get('/view', (req, res) => {
-    res.sendFile(path.join(__dirname, 'view.html'));
-});
-
-// Store the connected clients
-const clients = new Set();
-
-// Buffer to store live stream data
-let liveStreamBuffer = [];
-let activeStreamer = null;
-
-// Maximum number of entries in the live stream buffer
-const MAX_BUFFER_LENGTH = 10;
-
-// WebSocket connection event
 wss.on('connection', (ws, req) => {
+    const url = new URL(req.url, 'https://node.techlm77.co.uk');
+    const channel = url.searchParams.get('channel');
+
+    if (!channel) {
+        ws.send(JSON.stringify({ type: 'channel-required' }));
+        ws.close();
+        return;
+    }
+
+    if (!channelClients.has(channel)) {
+        channelClients.set(channel, new Set());
+    }
+
+    const clients = channelClients.get(channel);
+
     clients.add(ws);
 
-    // Send the count of connected clients to all clients
-    broadcastConnectedClients();
+    broadcastConnectedClients(channel);
 
-    // Send the live stream data to the new viewer as binary data
-    liveStreamBuffer.forEach((dataBlob) => {
-        if (ws.readyState === WebSocket.OPEN) {
-            ws.send(dataBlob);
-        }
-    });
-
-    // Handle messages from the streamer
-    ws.on('message', (message) => {
-        if (!activeStreamer || ws === activeStreamer) {
-            activeStreamer = ws;
-            clients.forEach((client) => {
-                if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(message);
-                }
-            });
-
-            // Save the live stream data only when the streamer is active and streaming
-            if (activeStreamer === ws) {
-                liveStreamBuffer.push(message);
-
-                // Limit the size of liveStreamBuffer
-                if (liveStreamBuffer.length > MAX_BUFFER_LENGTH) {
-                    liveStreamBuffer.shift(); // Remove the oldest entry
-                }
+    if (liveStreamBuffer[channel]) {
+        liveStreamBuffer[channel].forEach((dataBlob) => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(dataBlob);
             }
-        } else {
-            ws.send(JSON.stringify({ type: 'streaming-rejected' }));
-            ws.close();
+        });
+    }
+
+    ws.on('message', (message) => {
+        clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+
+        if (isStreamEnded(message)) {
+            cleanupFiles(channel);
+            clearLiveStreamBuffer(channel);
         }
+
+        saveStreamDataToFile(channel, message);
+        saveStreamDataToBuffer(channel, message);
     });
 
-    // Handle client disconnection
     ws.on('close', () => {
         clients.delete(ws);
-        if (ws === activeStreamer) {
-            activeStreamer = null;
+        broadcastDisconnectedClient(channel);
 
-            // Clear the existing live stream data when the streamer ends the stream
-            liveStreamBuffer = [];
+        if (clients.size === 0) {
+            clearLiveStreamBuffer(channel);
+            cleanupFiles(channel);
         }
-
-        // Notify about the disconnected client
-        broadcastDisconnectedClient();
     });
 });
 
-// Function to broadcast the count of connected clients to all clients
-function broadcastConnectedClients() {
+function clearLiveStreamBuffer(channel) {
+    liveStreamBuffer[channel] = [];
+}
+
+// Function to check if a stream has ended based on the message type
+function isStreamEnded(message) {
+    try {
+        const data = JSON.parse(message);
+        return data.type === 'stream-ended';
+    } catch (error) {
+        return false;
+    }
+}
+
+// Function to delete files in the channel folder
+function cleanupFiles(channel) {
+    const folderPath = path.join(__dirname, `channel-${channel}`);
+
+    fs.readdir(folderPath, (err, files) => {
+        if (err) {
+            console.error('Error reading folder:', err);
+            return;
+        }
+
+        files.forEach((file) => {
+            const filePath = path.join(folderPath, file);
+
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) {
+                    console.error('Error deleting file:', unlinkErr);
+                }
+            });
+        });
+    });
+}
+
+// Function to broadcast the count of connected clients to all clients in the channel
+function broadcastConnectedClients(channel) {
+    const clients = channelClients.get(channel);
     const connectedClientsCount = clients.size;
     const message = JSON.stringify({ type: 'connected-clients', count: connectedClientsCount });
 
@@ -104,8 +123,9 @@ function broadcastConnectedClients() {
     });
 }
 
-// Function to broadcast the disconnection of a client to all clients
-function broadcastDisconnectedClient() {
+// Function to broadcast a message when a client disconnects
+function broadcastDisconnectedClient(channel) {
+    const clients = channelClients.get(channel);
     const connectedClientsCount = clients.size;
     const message = JSON.stringify({ type: 'disconnected-client', count: connectedClientsCount });
 
@@ -116,9 +136,31 @@ function broadcastDisconnectedClient() {
     });
 }
 
-// Start the HTTP and HTTPS servers
-const httpPort = 8086; // Change to the desired HTTP port
-const httpsPort = 8446; // Change to the desired HTTPS port
+// Function to save stream data to a file
+function saveStreamDataToFile(channel, data) {
+    const filePath = path.join(__dirname, `channel-${channel}`, `${Date.now()}.webm`);
+
+    fs.appendFileSync(filePath, data, 'binary', (err) => {
+        if (err) {
+            console.error('Error saving stream data to file:', err);
+        }
+    });
+}
+
+// Function to save stream data to a buffer
+function saveStreamDataToBuffer(channel, data) {
+    if (!liveStreamBuffer[channel]) {
+        liveStreamBuffer[channel] = [];
+    }
+
+    liveStreamBuffer[channel].push(data);
+}
+
+// Map to store buffered stream data for each channel
+const liveStreamBuffer = {};
+
+const httpPort = 8086;
+const httpsPort = 8446;
 
 httpServer.listen(httpPort, () => {
     console.log(`${httpPort} Live Stream/View v2`);
