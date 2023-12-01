@@ -1,19 +1,20 @@
+// Import necessary modules
 const express = require('express');
-const http = require('http');
 const https = require('https');
 const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
 
+// Create an Express application
 const app = express();
 
+// Create an HTTPS server using SSL certificates
 const httpsServer = https.createServer({
     key: fs.readFileSync('/etc/letsencrypt/live/node.techlm77.co.uk/privkey.pem'),
     cert: fs.readFileSync('/etc/letsencrypt/live/node.techlm77.co.uk/fullchain.pem')
 }, app);
 
-const httpServer = http.createServer(app);
-
+// Create a WebSocket server using the HTTPS server
 const wss = new WebSocket.Server({ server: httpsServer });
 
 // Map to store connected clients for each channel
@@ -159,13 +160,10 @@ function saveStreamDataToBuffer(channel, data) {
 // Map to store buffered stream data for each channel
 const liveStreamBuffer = {};
 
-const httpPort = 8086;
+// Ports for HTTPS server
 const httpsPort = 8446;
 
-httpServer.listen(httpPort, () => {
-    console.log(`${httpPort} Live Stream/View v2`);
-});
-
+// Start the HTTPS server
 httpsServer.listen(httpsPort, () => {
-    console.log(`${httpsPort} Live Stream/View v2`);
+    console.log(`${httpsPort} Live Stream/View`);
 });
