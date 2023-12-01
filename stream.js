@@ -1,6 +1,7 @@
 // Import necessary modules
 const express = require('express');
 const https = require('https');
+const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
@@ -15,12 +16,35 @@ const httpsServer = https.createServer({
 }, app);
 
 // Create a WebSocket server using the HTTPS server
-const wss = new WebSocket.Server({ server: httpsServer });
+const wssHttps = new WebSocket.Server({ server: httpsServer });
+
+// Create an HTTP server
+const httpServer = http.createServer(app);
+
+// Create a WebSocket server using the HTTP server
+const wssHttp = new WebSocket.Server({ noServer: true });
 
 // Map to store connected clients for each channel
 const channelClients = new Map();
 
-wss.on('connection', (ws, req) => {
+wssHttps.on('connection', handleConnection);
+wssHttp.on('connection', handleConnection);
+
+httpServer.on('upgrade', (request, socket, head) => {
+    wssHttp.handleUpgrade(request, socket, head, (ws) => {
+        wssHttp.emit('connection', ws, request);
+    });
+});
+
+httpsServer.listen(8446, () => {
+    console.log('HTTPS server listening on port 8446');
+});
+
+httpServer.listen(8086, () => {
+    console.log('HTTP server listening on port 8086');
+});
+
+function handleConnection(ws, req) {
     const url = new URL(req.url, 'https://node.techlm77.co.uk');
     const channel = url.searchParams.get('channel');
 
@@ -73,7 +97,7 @@ wss.on('connection', (ws, req) => {
             cleanupFiles(channel);
         }
     });
-});
+}
 
 function clearLiveStreamBuffer(channel) {
     liveStreamBuffer[channel] = [];
@@ -159,11 +183,3 @@ function saveStreamDataToBuffer(channel, data) {
 
 // Map to store buffered stream data for each channel
 const liveStreamBuffer = {};
-
-// Ports for HTTPS server
-const httpsPort = 8446;
-
-// Start the HTTPS server
-httpsServer.listen(httpsPort, () => {
-    console.log(`${httpsPort} Live Stream/View`);
-});
