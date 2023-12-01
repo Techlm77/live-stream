@@ -142,7 +142,9 @@
     <script>
         document.getElementById('startStreamBtn').addEventListener('click', function () {
             const selectedChannel = document.getElementById('socketChannel').value;
-            const socket = new WebSocket(`wss://node.techlm77.co.uk:8446/stream?channel=${selectedChannel}`);
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const host = window.location.protocol === 'https:' ? 'node.techlm77.co.uk:8446' : '192.168.1.188:8086';
+            const socket = new WebSocket(`${protocol}://${host}/stream?channel=${selectedChannel}`);
             const videoElement = document.getElementById('stream-video');
             const audioElement = document.getElementById('stream-audio');
             const statusElement = document.getElementById('status');
@@ -154,133 +156,133 @@
             const audioPermissionButton = document.getElementById('request-audio-permission');
             const endStreamButton = document.getElementById('end-stream-btn');
             const notificationPermissionButton = document.getElementById('notification-permission-btn');
-    
+
             let mediaStream;
             let mediaRecorder;
             let connectedClientsCount = 0;
             let connectedClientsHistory = [];
-    
+
             socket.binaryType = 'arraybuffer'; // Optimize for binary data
-    
+
             function updateConnectedClients(count, isDisconnected = false) {
                 connectedClientsCount = count;
                 connectedClientsElement.textContent = `Connected clients: ${connectedClientsCount}`;
-    
+
                 // Notify the streamer
                 if (Notification.permission === 'granted') {
                     const notificationMessage = isDisconnected ? 'A client has disconnected!' : 'There are new connected clients!';
-    
+
                     const notification = new Notification(`Connected clients: ${connectedClientsCount}`, {
                         body: notificationMessage,
                         icon: 'https://techlm77.co.uk/favicon.ico'
                     });
                 }
-    
+
                 // Update the history and redraw the graph
                 connectedClientsHistory.push(connectedClientsCount);
                 drawGraph();
             }
-    
+
             function drawGraph() {
                 const ctx = graphCanvas.getContext('2d');
                 const width = graphCanvas.width;
                 const height = graphCanvas.height;
-    
+
                 ctx.clearRect(0, 0, width, height);
-    
+
                 // Draw the grid
                 ctx.strokeStyle = '#555';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-    
+
                 // Horizontal grid lines
                 for (let i = 0; i <= 10; i++) {
                     const y = (i / 10) * height;
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
                 }
-    
+
                 // Vertical grid lines
                 for (let i = 0; i <= connectedClientsHistory.length; i++) {
                     const x = (i / Math.max(10, connectedClientsHistory.length - 1)) * width;
                     ctx.moveTo(x, 0);
                     ctx.lineTo(x, height);
                 }
-    
+
                 ctx.stroke();
-    
+
                 // Draw the line graph with different colors for increase and decrease
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-    
+
                 for (let i = 0; i < connectedClientsHistory.length; i++) {
                     const x = (i / Math.max(10, connectedClientsHistory.length - 1)) * width;
                     const y = ((connectedClientsHistory[i] / Math.max(10, Math.max(...connectedClientsHistory))) * height);
-    
+
                     if (i > 0) {
                         const diff = connectedClientsHistory[i] - connectedClientsHistory[i - 1];
                         ctx.strokeStyle = diff > 0 ? 'green' : 'red';
                     }
-    
+
                     if (i === 0) {
                         ctx.moveTo(x, y);
                     } else {
                         ctx.lineTo(x, y);
                     }
                 }
-    
+
                 ctx.stroke();
             }
-    
+
             function startStreaming() {
                 if (mediaStream) {
                     videoElement.srcObject = mediaStream;
                     audioElement.srcObject = mediaStream;
-    
+
                     const videoOptions = {
-                        mimeType: 'video/webm; codecs="vp8"', // Adjust the codec as needed
-                        videoBitsPerSecond: 1000000, // Reduce the bitrate for slower upload speed
+                        mimeType: 'video/webm; codecs="vp9"', // Adjust the codec as needed
+                        videoBitsPerSecond: 2000000,
                         width: window.innerWidth,
                         height: window.innerHeight,
-                        frameRate: 24, // Adjust the frame rate as needed
+                        frameRate: 30,
                     };
-    
+
                     const audioOptions = {
                         mimeType: 'audio/webm; codecs="opus"',
-                        audioBitsPerSecond: 32000, // Reduce the audio bitrate for slower upload speed
-                        sampleRate: 22050, // Adjust the sample rate as needed
+                        audioBitsPerSecond: 96000, // Adjust the audio bitrate as needed
+                        sampleRate: 48000, // Adjust the sample rate as needed
                         channelCount: 2, // Stereo
                     };
-    
+
                     mediaRecorder = new MediaRecorder(mediaStream, { video: videoOptions, audio: audioOptions });
-    
+
                     mediaRecorder.ondataavailable = function (event) {
                         if (event.data.size > 0) {
                             socket.send(event.data);
                         }
                     };
-    
+
                     mediaRecorder.onstart = function () {
                         statusElement.textContent = 'Status: Live';
                         statusElement.style.color = 'green';
                     };
-    
+
                     mediaRecorder.onstop = function () {
                         statusElement.textContent = 'Status: Stream Ended';
                         statusElement.style.color = 'red';
-    
+
                         socket.send(JSON.stringify({ type: 'stream-ended' }));
                         socket.close();
                     };
-    
+
                     mediaStream.getVideoTracks()[0].addEventListener('ended', function () {
                         mediaRecorder.stop();
                     });
-    
+
                     mediaRecorder.start(1000);
                 }
             }
-    
+
             screenPermissionButton.addEventListener('click', function () {
                 navigator.mediaDevices.getDisplayMedia({ video: true })
                     .then(function (stream) {
@@ -300,7 +302,7 @@
                         statusElement.style.color = 'red';
                     });
             });
-    
+
             cameraPermissionButton.addEventListener('click', function () {
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then(function (stream) {
@@ -320,9 +322,9 @@
                         statusElement.style.color = 'red';
                     });
             });
-    
+
             audioPermissionButton.addEventListener('click', function () {
-                navigator.mediaDevices.getUserMedia({ audio: { channelCount: 2, sampleRate: 22050, bitRate: 32000 } })
+                navigator.mediaDevices.getUserMedia({ audio: { channelCount: 2, sampleRate: 48000, bitRate: 96000 } })
                     .then(function (stream) {
                         mediaStream.addTrack(stream.getAudioTracks()[0]);
                         audioPermissionButton.style.display = 'none';
@@ -340,14 +342,14 @@
                         statusElement.style.color = 'red';
                     });
             });
-    
+
             endStreamButton.addEventListener('click', function () {
                 if (mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
                     endStreamButton.disabled = true;
                 }
             });
-    
+
             notificationPermissionButton.addEventListener('click', function () {
                 // Request notification permission
                 Notification.requestPermission().then(function (permission) {
@@ -357,7 +359,7 @@
                     }
                 });
             });
-    
+
             socket.addEventListener('message', function (event) {
                 try {
                     const data = JSON.parse(event.data);
@@ -377,7 +379,7 @@
                 }
             });
         });
-    </script>    
+    </script>
 
 </body>
 
