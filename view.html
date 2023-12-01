@@ -129,8 +129,6 @@
             function startPlaying() {
                 if (!activeMediaSource) {
                     activeMediaSource = true;
-                    videoElement.play();
-                    audioElement.play(); // Auto-play audio
                 }
             }
 
@@ -138,7 +136,7 @@
             audioElement.src = URL.createObjectURL(mediaSource);
 
             mediaSource.addEventListener('sourceopen', function () {
-                sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp9, opus"');
+                sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8, opus"');
                 sourceBuffer.mode = 'sequence';
                 processReceivedBuffers();
                 downloadButton.style.display = 'block'; // Show download button
