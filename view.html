@@ -111,7 +111,9 @@
     <script>
         document.getElementById('startViewBtn').addEventListener('click', function () {
             const selectedChannel = document.getElementById('socketChannel').value;
-            const socket = new WebSocket(`wss://node.techlm77.co.uk:8446/view?channel=${selectedChannel}`);
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const host = window.location.protocol === 'https:' ? 'node.techlm77.co.uk:8446' : '192.168.1.188:8086';
+            const socket = new WebSocket(`${protocol}://${host}/view?channel=${selectedChannel}`);
             const videoElement = document.getElementById('stream-video');
             const audioElement = document.getElementById('stream-audio');
             const statusElement = document.getElementById('status');
@@ -136,7 +138,7 @@
             audioElement.src = URL.createObjectURL(mediaSource);
 
             mediaSource.addEventListener('sourceopen', function () {
-                sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8, opus"');
+                sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp9, opus"');
                 sourceBuffer.mode = 'sequence';
                 processReceivedBuffers();
                 downloadButton.style.display = 'block'; // Show download button
